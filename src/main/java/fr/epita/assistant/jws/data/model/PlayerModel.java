@@ -19,6 +19,8 @@ import java.sql.Timestamp;
 public class PlayerModel extends PanacheEntityBase {
     public @Id @GeneratedValue(strategy = GenerationType.IDENTITY) long id;
     public Timestamp lastBomb;
+    public int bombX;
+    public int bombY;
     public Timestamp lastMovement;
     public int lives;
     public String name;

@@ -1,25 +1,36 @@
 package fr.epita.assistant.jws.domain.service;
 
-
-import fr.epita.assistant.jws.data.model.GameMapModel;
+import fr.epita.assistant.jws.Position;
+import fr.epita.assistant.jws.RLE;
 import fr.epita.assistant.jws.data.model.GameModel;
-import fr.epita.assistant.jws.data.model.PlayerModel;
+
 import fr.epita.assistant.jws.domain.entity.PlayerEntity;
-import fr.epita.assistant.jws.presentation.rest.response.CreateGameResponse;
+import fr.epita.assistant.jws.presentation.rest.response.GetGameResponse;
 import fr.epita.assistant.jws.presentation.rest.response.ListGamesResponse;
-import lombok.val;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.springframework.scheduling.annotation.Scheduled;
+
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 import javax.transaction.Transactional;
+import javax.ws.rs.WebApplicationException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
+
 import java.util.HashSet;
 import java.util.Set;
+
 import java.util.stream.Collectors;
+
 
 @ApplicationScoped
 public class GameService {
-    private final Set<ListGamesResponse> gameSet = new HashSet<>();
+    @ConfigProperty(name = "JWS_TICK_DURATION") long tick;
+    @ConfigProperty(name = "JWS_DELAY_MOVEMENT") long moveDelay;
+    @ConfigProperty(name = "JWS_DELAY_BOMB") long bombDelay;
+
+    @Inject GameMapService mapService;
+    @Inject PlayerService playerService;
 
     @Transactional
     public Set<ListGamesResponse> getSet() {
@@ -29,42 +40,128 @@ public class GameService {
                 .collect(Collectors.toSet());
     }
 
+    private GetGameResponse createResponse(GameModel gModel) {
+        return new GetGameResponse(gModel.startTime, gModel.state, gModel.players.stream()
+                .map(pl -> new GetGameResponse.Player(pl.id, pl.name, pl.lives, pl.posX, pl.posY))
+                .collect(Collectors.toSet()),
+                RLE.wrappEncode(gModel.gameMap.map), gModel.id);
+    }
+
     @Transactional
-    public CreateGameResponse addGame(final PlayerEntity player) {
-        var mModel = new GameMapModel();
+    public GetGameResponse addGame(final PlayerEntity player) {
+
+        var mModel = mapService.getMap(mapService.addMap());
 
         var gModel = new GameModel()
                 .withStartTime(new Timestamp(System.currentTimeMillis()))
                 .withState("STARTING")
-                .withPlayers(new HashSet<PlayerModel>())
+                .withPlayers(new HashSet<>())
                 .withGameMap(mModel);
 
         GameModel.persist(gModel);
 
-        var tmp = GameModel.<GameModel>findAll()
-                .stream()
-                .filter(game -> game.id == gModel.id)
-                .findFirst()
-                .orElse(null);
+        playerService.addPlayer(player, gModel.id);
 
-        var pModel = new PlayerModel()
-                .withLastBomb(player.lastBomb)
-                .withLives(3)
-                .withLastMovement(player.lastMovement)
-                .withName(player.name)
-                .withPosition(player.position)
-                .withPosX(0)
-                .withPosY(0)
-                .withGame(tmp);
+        GameModel tmp = GameModel.findById(gModel.id);
 
-        PlayerModel.persist(pModel);
+        return createResponse(tmp);
+    }
 
-        tmp.players.add(pModel);
+    @Transactional
+    public GetGameResponse getGame(final long id) {
+        GameModel gModel = GameModel.findById(id);
 
-        return new CreateGameResponse(tmp.startTime, tmp.state, tmp.players.stream()
-                .map(pl -> new CreateGameResponse.Player(pl.id, pl.name, pl.lives, pl.posX, pl.posY))
-                .collect(Collectors.toSet()),
-                tmp.gameMap.map, tmp.id);
-        // TODO: RLE
+        if (gModel == null)
+            throw new WebApplicationException(404);
+
+        return createResponse(gModel);
+    }
+
+    @Transactional
+    public GetGameResponse startGame(final long id) {
+        GameModel gModel = GameModel.findById(id);
+
+        if (gModel == null)
+            throw new WebApplicationException(404);
+
+        gModel.startTime = new Timestamp(System.currentTimeMillis());
+        gModel.state = "RUNNING";
+
+        return createResponse(gModel);
+    }
+
+    private boolean isValid(final Position position, final String map) {
+        return map.charAt(position.posY * 17 + position.posX) == 'G';
+    }
+
+    @Transactional
+    public GetGameResponse movePlayer(final long gameId, final long playerId, final Position pos) {
+        GameModel gModel = GameModel.findById(gameId);
+
+        if (gModel == null)
+            throw new WebApplicationException(404);
+
+        if (!gModel.state.equals("RUNNING"))
+            throw new WebApplicationException(400);
+
+        if (isValid(pos, gModel.gameMap.map)) {
+            var pModel = gModel.players.stream().
+                    filter(player -> player.id == playerId).
+                    findFirst()
+                    .orElseThrow(() -> new WebApplicationException(404));
+            playerService.movePlayer(pModel, pos);
+        }
+        else
+            throw new WebApplicationException(400);
+
+        return createResponse(gModel);
+    }
+
+    @Transactional
+    // is executed every 10ms
+    @Scheduled(fixedRate = 1)
+    public void scheduledExplosion() {
+
+        GameModel.<GameModel>findAll().stream().forEach(gModel -> {
+            for (var player : gModel.players) {
+                var now = new Timestamp(System.currentTimeMillis());
+                if (player.lastBomb != null && now.getTime() >= player.lastBomb.getTime() + tick * bombDelay) {
+                    var pos = new Position(player.bombX, player.bombY);
+                    mapService.exploseBomb(gModel.gameMap, pos);
+                    playerService.hurtPlayer(gModel.players, pos);
+                    player.lastBomb = null;
+                }
+            }
+
+            if (gModel.players.stream().noneMatch(p -> p.lives > 0))
+                gModel.state = "FINISHED";
+        });
+    }
+
+    @Transactional
+    public GetGameResponse addBomb(final long gameId, final long playerId, Position pos) {
+        GameModel gModel = GameModel.findById(gameId);
+
+        if (gModel == null) {
+            throw new WebApplicationException(404);
+        }
+
+        if (!gModel.state.equals("RUNNING"))
+            throw new WebApplicationException(400);
+
+        if (isValid(pos, gModel.gameMap.map)) {
+            var pModel = gModel.players.stream().
+                    filter(player -> player.id == playerId).
+                    findFirst()
+                    .orElseThrow(() -> new WebApplicationException(404));
+
+            playerService.poseBomb(pModel, pos);
+            mapService.addBomb(gModel.gameMap, pos);
+
+        }
+        else
+            throw new WebApplicationException(400);
+
+        return createResponse(gModel);
     }
 }

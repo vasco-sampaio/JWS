@@ -4,14 +4,14 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Set;
 
-public class CreateGameResponse {
+public class GetGameResponse {
     public Timestamp startTime;
     public String state;
-    public Set<Player> players;
+    public Set<GetGameResponse.Player> players;
     public List<String> map;
     public long id;
 
-    public CreateGameResponse(Timestamp startTime, String state, Set<Player> players, List<String> map, long id) {
+    public GetGameResponse(Timestamp startTime, String state, Set<GetGameResponse.Player> players, List<String> map, long id) {
         this.startTime = startTime;
         this.state = state;
         this.players = players;

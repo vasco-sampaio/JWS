@@ -93,7 +93,26 @@ public class PlayerService {
                          (play.posX == pos.posX + 1 && play.posY == pos.posY) ||
                          (play.posX == pos.posX && play.posY == pos.posY - 1) ||
                          (play.posX == pos.posX && play.posY == pos.posY + 1)) {
+                     switch (play.position) {
+                     case 0:
+                         play.posX = 1;
+                         play.posY = 1;
+                         break;
+                     case 1:
+                         play.posX = 15;
+                         play.posY = 1;
+                         break;
+                     case 2:
+                         play.posX = 1;
+                         play.posY = 13;
+                         break;
+                     case 3:
+                         play.posX = 15;
+                         play.posY = 13;
+                         break;
+                    }
                      play.lives = play.lives - 1;
+                     play.lastBomb = null;
                  }
              }
         }
@@ -112,23 +131,3 @@ public class PlayerService {
         }
     }
 }
-
-
- /*switch (play.position) {
-                     case 0:
-                         play.posX = 1;
-                         play.posY = 1;
-                         break;
-                     case 1:
-                         play.posX = 15;
-                         play.posY = 1;
-                         break;
-                     case 2:
-                         play.posX = 1;
-                         play.posY = 13;
-                         break;
-                     case 3:
-                         play.posX = 15;
-                         play.posY = 13;
-                         break;
-                 }*/

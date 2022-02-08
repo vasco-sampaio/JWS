@@ -57,7 +57,6 @@ public class RLE {
     }
 
     private static String decode(final String str) {
-        int count = 0;
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < str.length(); i += 2) {
             builder.append(String.valueOf(str.charAt(i + 1)).repeat(str.charAt(i) % '0'));

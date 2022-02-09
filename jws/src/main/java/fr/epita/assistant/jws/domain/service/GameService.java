@@ -4,6 +4,7 @@ import fr.epita.assistant.jws.Position;
 import fr.epita.assistant.jws.RLE;
 import fr.epita.assistant.jws.data.model.GameModel;
 
+import fr.epita.assistant.jws.data.model.PlayerModel;
 import fr.epita.assistant.jws.domain.entity.PlayerEntity;
 import fr.epita.assistant.jws.presentation.rest.response.GetGameResponse;
 import fr.epita.assistant.jws.presentation.rest.response.ListGamesResponse;
@@ -20,6 +21,10 @@ import java.sql.Timestamp;
 import java.util.HashSet;
 import java.util.Set;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 
@@ -81,7 +86,7 @@ public class GameService {
     public GetGameResponse startGame(final long id) {
         GameModel gModel = GameModel.findById(id);
 
-        if (gModel == null)
+        if (gModel == null || gModel.players.size() <= 1)
             throw new WebApplicationException(404);
 
         gModel.startTime = new Timestamp(System.currentTimeMillis());
@@ -133,7 +138,7 @@ public class GameService {
                 }
             }
 
-            if (gModel.players.stream().noneMatch(p -> p.lives > 0))
+            if (gModel.players.stream().filter(p -> p.lives > 0).count() <= 1)
                 gModel.state = "FINISHED";
         });
     }
@@ -158,6 +163,18 @@ public class GameService {
             playerService.poseBomb(pModel, pos);
             mapService.addBomb(gModel.gameMap, pos);
 
+            /*ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
+
+            Runnable task = () -> {
+                mapService.exploseBomb(gModel.gameMap, pos);
+                playerService.hurtPlayer(gModel.players, pos);
+                pModel.lastBomb = null;
+            };
+            exec.schedule(task, tick * bombDelay, TimeUnit.MILLISECONDS); */
+
+            // System.out.println(gModel.gameMap.map);
+            if (gModel.players.stream().filter(p -> p.lives > 0).count() <= 1)
+                gModel.state = "FINISHED";
         }
         else
             throw new WebApplicationException(400);

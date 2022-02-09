@@ -62,6 +62,5 @@ public class GameMapService {
             }
 
             map.map = new String(builder);
-
     }
 }

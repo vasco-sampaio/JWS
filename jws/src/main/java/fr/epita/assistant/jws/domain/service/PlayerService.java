@@ -6,7 +6,7 @@ import fr.epita.assistant.jws.data.model.GameModel;
 import fr.epita.assistant.jws.data.model.PlayerModel;
 
 import fr.epita.assistant.jws.domain.entity.PlayerEntity;
-import javafx.util.Pair;
+
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -34,19 +34,20 @@ public class PlayerService {
         if (tmp.state.equals("RUNNING") || tmp.players.size() == 4)
             throw new WebApplicationException(400);
 
-        Pair<Position, Integer> pos = null;
-        switch (tmp.players.size()) {
+        Position pos = null;
+        int position = tmp.players.size();
+        switch (position) {
             case 0:
-                pos = new Pair<>(new Position(1, 1), 0);
+                pos = new Position(1, 1);
                 break;
             case 1:
-                pos = new Pair<>(new Position(15, 1), 1);
+                pos = new Position(15, 1);
                 break;
             case 2:
-                pos = new Pair<>(new Position(1, 13), 2);
+                pos = new Position(1, 13);
                 break;
             case 3:
-                pos = new Pair<>(new Position(15, 13), 3);
+                pos = new Position(15, 13);
                 break;
             default:
                 throw new WebApplicationException(400);
@@ -56,9 +57,9 @@ public class PlayerService {
                 .withLives(3)
                 .withLastMovement(player.lastMovement)
                 .withName(player.name)
-                .withPosition(pos.getValue())
-                .withPosX(pos.getKey().posX)
-                .withPosY(pos.getKey().posY)
+                .withPosition(position)
+                .withPosX(pos.posX)
+                .withPosY(pos.posY)
                 .withGame(tmp);
 
         PlayerModel.persist(pModel);

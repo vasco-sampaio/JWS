@@ -1,0 +1,26 @@
+POST http://localhost:8082/games
+Content-Type: application/json
+
+{
+  "name": "Solene"
+}
+
+###
+
+POST http://localhost:8082/games/10
+Content-Type: application/json
+
+{
+  "name": "Amina"
+}
+
+
+###
+
+GET http://localhost:8082/games/1
+
+###
+
+GET http://localhost:8082/games
+
+###
